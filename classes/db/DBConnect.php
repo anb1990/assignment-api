@@ -10,7 +10,7 @@ class DbConnect {
     private static $_instance; //The single instance
     private $_host = "localhost";
     private $_username = "root";
-    private $_password = "VumilaatqDB@20156";
+    private $_password = "VPasswd";
     private $_database = "yiiproject";
 
     /*
