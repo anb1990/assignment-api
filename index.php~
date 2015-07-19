@@ -1,0 +1,875 @@
+<?php
+require 'Slim/Slim.php';
+require 'classes/db/model.php';
+require 'classes/db/mysql.php';
+require 'classes/misc/helper.php';
+\Slim\Slim::registerAutoloader();
+header('Content-Type: text/html; charset=utf-8');
+
+$app = new \Slim\Slim();
+$app->contentType('Content-Type: application/json; charset=utf-8');
+$ip = $app->request()->getIp();
+$ip = ip2long("$ip");
+
+
+
+
+/***
+ * End of check 
+ */
+
+$app->get("/",function() use ($app){
+   echo "Welcome to KOYKO! Project\n";
+});
+
+$app->get("/test/:value",function($value) use($app){
+     $cypt = new MCrypt();
+     $originalData = $cypt->encrypt($value);
+     print $originalData;
+     
+});
+
+$app->get("/register/:var", function($var) use ($app) {
+    $cypt = new MCrypt();
+    $originalData = $cypt->decrypt($var);
+
+    $dataArray = explode('#$#', $originalData);
+    $name = $dataArray[0];
+    $email = $dataArray[1];
+    $pass = $dataArray[2];
+    $dob = $dataArray[3];
+    $voucher = $dataArray[4];
+    $gender = $dataArray[5];
+    $model = new myORM();
+    if($voucher != -1){
+       $voucherType = $model->voucherType($voucher);
+       //print_r($voucherType);die;
+    }else{
+      $voucherType = 'free';
+    }
+    
+    
+    $save = $model->insertUserProfile($name, $email, $pass, $dob, $voucher, $gender,$voucherType);
+    print $cypt->encrypt($save);
+});
+
+$app->get("/userpin/:var", function($var) use ($app, $ip) {
+    $cypt = new MCrypt();
+    $originalData = $cypt->decrypt($var);
+    
+    $dataArray = explode('#$#', $originalData);
+     $uid = $dataArray[0];
+     $email = $dataArray[1];
+     $pass = $dataArray[2];
+     $key = $dataArray[3];
+     $pin = $dataArray[4];
+     $setGet = $dataArray[5];
+     //print_r($dataArray);die;
+     $allowed = checkISP($ip, $email);
+     if($allowed == '-1000'){
+         echo "-1000";
+         return;
+     }
+     $model = new myORM();
+     
+     $check = $model->checkKey($uid, $key);
+     if($check == '-777'){
+         print($check);
+         return;
+     }
+     
+     if($setGet == 'set'){
+         $set = $model->setUserPin($uid,$email,$pass,$pin);
+     }else if($setGet == 'get'){
+         $get = $model->getUserPin($uid,$email,$pass);
+         echo $get;
+     }
+     
+     
+});
+
+$app->get("/profile/:var", function($var) use ($app, $ip) {
+     $cypt = new MCrypt();
+     $originalData = $cypt->decrypt($var);
+     $dataArray = explode('#$#', $originalData);
+     
+     $uid = $dataArray[0];
+     $email = $dataArray[1];
+     $pass = $dataArray[2];
+     $key = $dataArray[3];
+     
+     //Check ISP and User
+     $allowed = checkISP($ip, $email);
+     if($allowed == '-1000'){
+         echo "-1000";
+         return;
+     }
+     
+     $model = new myORM();
+     
+     $check = $model->checkKey($uid, $key);
+     if($check == '-777'){
+         print ($check);
+         return;
+     }
+     
+     $get = $model->getUserProfile($uid, $email, $pass);
+     $profile = '';
+     
+     if($get != -99){
+        while($row = mysql_fetch_array($get)){
+           $profile .= $row['full_name'].'##';   
+           $profile .= $row['email'].'##';
+           $profile .= $row['pass'].'##'; 
+           $profile .= $row['dob'].'##'; 
+           $profile .= $row['join_date'].'##';
+           $profile .= $row['gender'];
+           print $cypt->encrypt($profile);
+        }
+     }else{
+         print $cypt->encrypt('-99');
+     }
+     
+});
+
+$app->get("/update-profile/:var",function ($var) use($app, $ip){
+     $cypt = new MCrypt();
+     $originalData = $cypt->decrypt($var);
+     $dataArray = explode('#$#', $originalData);
+     
+     $uid = $dataArray[0];
+     $name = $dataArray[1];
+     $email = $dataArray[2];
+     $pass = $dataArray[3];
+     $dob = $dataArray[4];
+     $gender = $dataArray[5];
+     $key = $dataArray[6];
+     
+     //Check ISP and User
+     $allowed = checkISP($ip, $email);
+     if($allowed == '-1000'){
+         echo "-1000";
+         return;
+     }
+     
+     $model = new myORM();
+     
+     $check = $model->checkKey($uid, $key);
+      if($check == '-777'){
+         print ($check);
+         return;
+     }
+     
+     $update = $model->updateUserProfile($uid, $email, $pass, $name, $dob, $gender, $key);
+     //print_r($update);die;
+     print $cypt->encrypt($update);
+     
+});
+
+$app->get("/feedback/:var",function($var) use ($app, $ip){
+     $cypt = new MCrypt();
+     $originalData = $cypt->decrypt($var);
+     
+     $dataArray = explode('#$#', $originalData);
+     
+     $uid = $dataArray[0];
+     $email = $dataArray[1];
+     $pass = $dataArray[2];
+     $title = $dataArray[3];
+     $message = $dataArray[4];
+     $key = $dataArray[5];
+     
+     //Check ISP and User
+     $allowed = checkISP($ip, $email);
+     if($allowed == '-1000'){
+         echo "-1000";
+         return;
+     }
+     $model = new myORM();
+     
+     $check = $model->checkKey($uid, $key);
+     if($check == '-777'){
+         print($check);
+         return;
+     }
+     
+     $save = $model->insertFeedback($email, $pass, $uid, $title, $message);
+     print $cypt->encrypt($save);
+});
+
+$app->get("/login/:var",function($var) use ($app, $ip){
+   $cypt = new MCrypt();
+   $originalData = $cypt->decrypt($var);
+   //print_r($originalData);die;
+   $dataArray = explode('#$#', $originalData);
+   $email = $dataArray[0];
+   $pass = $dataArray[1];
+   //Check ISP and User
+     $allowed = checkISP($ip, $email);
+     if($allowed == '-1000'){
+         echo "-1000";
+         return;
+     }
+   $model = new myORM();
+   $login = $model->login($email, $pass);
+   print $cypt->encrypt($login);
+});
+
+$app->get("/apps/:var", function($var) use ($app, $ip){
+    $cypt = new MCrypt();
+    $orginalData = $cypt->decrypt($var);
+    
+    $dataArray = explode('#$#', $orginalData);
+    $email = $dataArray[0];
+    $pass = $dataArray[1];
+    $uid = $dataArray[2];
+    $key = $dataArray[3];
+    $type = $dataArray[4];
+    //Check ISP and User
+     $allowed = checkISP($ip, $email);
+     /*if($allowed == '-1000'){
+         echo "-1000";
+         return;
+     }*/
+    $model = new myORM();
+    
+    $check = $model->checkKey($uid, $key);
+     if($check == '-777'){
+        print ($check);
+        return;
+     }
+    
+    $getApps = $model->getApps($email, $pass,$type);
+    
+    if($getApps != 0){
+        $apps = array();
+        while($row = mysql_fetch_array($getApps)){
+            $line = array();
+            $line['id'] = $row['id'];
+            $line['app_name'] = $row['app_name'];
+            //$line['app_desc'] = $row['app_desc'];
+            $line['image'] = $row['image'];
+            $line['url'] = $row['url'];
+            $line['grade_id'] = $row['grade_id'];
+            $line['course_id'] = $row['course_id'];
+	     $line['course_code'] = $row['course_code'];
+            $apps[] = $line;
+        }
+        $apps = utf8_converter($apps);
+        $apps = json_encode($apps);
+        print $cypt->encrypt($apps);
+    }else{
+        print $cypt->encrypt('0');
+    }
+});
+
+$app->get("/app/:var", function($var) use ($app, $ip){
+    $cypt = new MCrypt();
+    $orginalData = $cypt->decrypt($var);
+    
+    $dataArray = explode('#$#', $orginalData);
+    $email = $dataArray[0];
+    $pass = $dataArray[1];
+    $appId = $dataArray[2];
+    $uid = $dataArray[3];
+    $key = $dataArray[4];
+    //Check ISP and User
+     $allowed = checkISP($ip, $email);
+     if($allowed == '-1000'){
+         echo "-1000";
+         return;
+     }
+    $model = new myORM();
+    $check = $model->checkKey($uid, $key);
+    if($check == '-777'){
+        print ($check);
+        return;
+    }
+    
+    $app = $model->getAppById($email, $pass, $appId);
+    $line = array();
+    while($row = mysql_fetch_array($data)){
+            $line['id'] = $row['id'];
+            $line['app_name'] = $row['app_name'];
+            $line['app_desc'] = $row['app_desc'];
+            $line['image'] = $row['image'];
+            $line['screenshot1'] = $row['screenshot1'];
+            $line['screenshot2'] = $row['screenshot2'];
+            $line['author'] = $row['author'];
+            $line['price'] = $row['price'];
+            $line['number_of_downloads'] = $row['number_of_downloads'];
+            $line['rating'] = $row['rating'];
+            $line['grade_id'] = $row['grade_id'];
+            $line['course_id'] = $row['course_id'];
+            $line['url'] = $row['url'];
+    }
+    $line = utf8_converter($line);
+    $line = json_encode($line);
+    print $cypt->encrypt($apps);
+    
+});
+
+$app->get("/app/plus/:var", function($var) use ($app, $ip){
+    $cypt = new MCrypt();
+    $orginalData = $cypt->decrypt($var);
+    
+    $dataArray = explode('#$#', $orginalData);
+    $email = $dataArray[0];
+    $pass = $dataArray[1];
+    $appId = $dataArray[2];
+    $appUniName = $dataArray[3];
+    //Check ISP and User
+     $allowed = checkISP($ip, $email);
+     if($allowed == '-1000'){
+         echo "-1000";
+         return;
+     }
+    $model = new myORM();
+    $plus = $model->plusDownload($email, $pass, $appId, $appUniName);
+    return $cypt->encrypt($plus);
+});
+
+$app->get("/activities/:var", function($var) use ($app, $ip){
+    $cypt = new MCrypt();
+    $orginalData = $cypt->decrypt($var);
+    
+    $dataArray = explode('#$#', $orginalData);
+    $email = $dataArray[0];
+    $pass = $dataArray[1];
+    $uid = $data[2];
+    $key = $data[3];
+    //Check ISP and User
+     $allowed = checkISP($ip, $email);
+     if($allowed == '-1000'){
+         echo "-1000";
+         return;
+     }
+    $model = new myORM();
+    $check = $model->checkKey($uid, $key);
+    if($check == '-777'){
+        print($check);
+        return;
+    }
+    
+    $getAllActs = $model->getAllActivities($email, $pass);
+    
+    if($getAllActs != 0){
+        $acts = array();
+        while($row = mysql_fetch_array($getAllActs)){
+            $line = array();
+            $line['id'] = $row['id'];
+            $line['grade_id'] = $row['grade_id'];
+            $line['course_id'] = $row['course_id'];
+            $line['activity_name'] = $row['activity_name'];
+            $line['activity_type'] = $row['activity_type'];
+            $line['activity_url'] = $row['activity_url'];
+            $line['shelf_image'] = $row['shelf_image'];
+            $line['video_url'] = $row['video_url'];
+            $line['english_name'] = $row['english_name'];
+            $acts[] = $line;
+        }
+        $acts = utf8_converter($acts);
+        $acts = json_encode($acts);
+        print $cypt->encrypt($acts);
+    }else{
+        return $cypt->encrypt('0');
+    }
+});
+
+$app->get("/activity/:var", function($var) use ($app, $ip){
+    $cypt = new MCrypt();
+    $orginalData = $cypt->decrypt($var);
+    
+    $dataArray = explode('#$#', $orginalData);
+    $email = $dataArray[0];
+    $pass = $dataArray[1];
+    $actId = $dataArray[2];
+    $uid = $dataArray[3];
+    $key = $dataArray[4];
+    //Check ISP and User
+     $allowed = checkISP($ip, $email);
+     if($allowed == '-1000'){
+         echo "-1000";
+         return;
+     }
+    $model = new myORM();
+    
+    $check = $model->checkKey($uid, $key);
+    if($check == '-777'){
+        print($check);
+        return;
+    }
+    
+    $act = $model->getActivityById($email, $pass, $actId);
+    $line = array();
+    while($row = mysql_fetch_array($act)){
+        $line['id'] = $row['id'];
+        $line['grade_id'] = $row['grade_id'];
+        $line['course_id'] = $row['course_id'];
+        $line['activity_name'] = $row['activity_name'];
+        $line['activity_type'] = $row['activity_type'];
+        $line['activity_url'] = $row['activity_url'];
+        $line['shelf_image'] = $row['shelf_image'];
+        $line['video_url'] = $row['video_url'];
+        $line['english_name'] = $row['english_name'];
+    }
+    $line = utf8_converter($line);
+    $line = json_encode($line);
+    print $cypt->encrypt($line);
+});
+
+
+$app->get("/apps/filter/:var",function($var) use ($app, $ip){
+   $cypt = new MCrypt();
+   $originalData = $cypt->decrypt($var);
+   
+   $dataArray = explode("#$#",$originalData);
+   $email = $dataArray[0];
+   $pass = $dataArray[1];
+   $gid = $dataArray[2];
+   $cid = $dataArray[3];
+   $uid = $dataArray[4];
+   $key = $dataArray[5];
+   //Check ISP and User
+     $allowed = checkISP($ip, $email);
+     if($allowed == '-1000'){
+         echo "-1000";
+         return;
+     }
+   $model = new myORM();
+   $check = $model->checkKey($uid, $key);
+    if($check == '-777'){
+        print ($check);
+        return;
+    }
+   
+   
+   $filtered = $model->filterApps($email, $pass, $gid, $cid);
+   if($filtered != 0){
+        $apps = array();
+        while($row = mysql_fetch_array($filtered)){
+            $line = array();
+            $line['id'] = $row['id'];
+            $line['grade_id'] = $row['grade_id'];
+            $line['course_id'] = $row['course_id'];
+            $line['app_name'] = $row['app_name'];
+            $line['app_desc'] = $row['app_desc'];
+            $line['image'] = $row['image'];
+            $line['url'] = $row['url'];
+            $apps[] = $line;
+        }
+        $apps = utf8_converter($apps);
+        $apps = json_encode($apps);
+        print $cypt->encrypt($apps);
+    }else{
+        print $cypt->encrypt('0');
+    }
+   
+});
+
+$app->get("/activities/filter/:var", function($var) use ($app, $ip){
+    $cypt = new MCrypt();
+    $orginalData = $cypt->decrypt($var);
+    
+    $dataArray = explode('#$#', $orginalData);
+    $email = $dataArray[0];
+    $pass = $dataArray[1];
+    $gid = $dataArray[2];
+    $cid = $dataArray[3];
+    $methodType = $dataArray[4];
+    $uid = $dataArray[5];
+    $key = $dataArray[6];
+    //Check ISP and User
+     $allowed = checkISP($ip, $email);
+     if($allowed == '-1000'){
+         echo "-1000";
+         return;
+     }
+    $model = new myORM();
+    
+    $check = $model->checkKey($uid, $key);
+    if($check == '-777'){
+        print ($check);
+        return;
+    }
+    
+    $filtered = $model->filterActivities($email, $pass, $gid, $cid,$methodType);
+    if($filtered != 0){
+        $acts = array();
+        while($row = mysql_fetch_array($filtered)){
+            $line = array();
+            $line['id'] = $row['id'];
+            $line['grade_id'] = $row['grade_id'];
+            $line['course_id'] = $row['course_id'];
+            $line['activity_name'] = $row['activity_name'];
+            $line['activity_type'] = $row['activity_type'];
+            $line['activity_url'] = $row['activity_url'];
+            $line['shelf_image'] = $row['shelf_image'];
+            $line['video_url'] = $row['video_url'];
+            $line['english_name'] = $row['english_name'];
+            $line['type'] = $row['type'];
+            $line['activity_method'] = $row['activity_method'];
+            $acts[] = $line;
+        }
+       //print_r($acts);die;
+        $acts = utf8_converter($acts);
+        $acts = json_encode($acts);
+        print $cypt->encrypt($acts);
+    }else{
+        print $cypt->encrypt('0');
+    }
+});
+
+$app->get("/user/enroll/:var", function($var) use ($app, $ip){
+    $cypt = new MCrypt();
+    $orginalData = $cypt->decrypt($var);
+    
+    $dataArray = explode('#$#', $orginalData);
+    $email = $dataArray[0];
+    $pass = $dataArray[1];
+    $uid = $dataArray[2];
+    $actId = $dataArray[3];
+    $key = $dataArray[4];
+    //Check ISP and User
+     $allowed = checkISP($ip, $email);
+     if($allowed == '-1000'){
+         echo "-1000";
+         return;
+     }
+    $model = new myORM();
+    
+    $check = $model->checkKey($uid, $key);
+    if($check == '-777'){
+        print ($check);
+        return;
+    }
+    
+    $enroll = $model->enrollUser($email, $pass, $uid, $actId);
+    print $cypt->encrypt($enroll);
+});
+
+$app->get("/user/unenroll/:var", function($var) use ($app, $ip){
+    $cypt = new MCrypt();
+    $originalData = $cypt->decrypt($var);
+    
+    $dataArray = explode("#$#", $originalData);
+    $email = $dataArray[0];
+    $pass = $dataArray[1];
+    $uid = $dataArray[2];
+    $actId = $dataArray[3];
+    $key = $dataArray[4];
+    $model = new myORM();
+    //Check ISP and User
+     $allowed = checkISP($ip, $email);
+     if($allowed == '-1000'){
+         echo "-1000";
+         return;
+     }
+    $check = $model->checkKey($uid, $key);
+    if($check == '-777'){
+        print ($check);
+        return;
+    }
+    
+    $unenroll = $model->unEnrollUser($email, $pass, $uid, $actId);
+    print $cypt->encrypt($unenroll);
+});
+
+$app->get("/user/activities/:var", function($var) use ($app, $ip){
+    $cypt = new MCrypt();
+    $orginalData = $cypt->decrypt($var);
+    
+    $dataArray = explode('#$#', $orginalData);
+    $email = $dataArray[0];
+    $pass = $dataArray[1];
+    $uid = $dataArray[2];
+    $key = $dataArray[3];
+    //Check ISP and User
+     $allowed = checkISP($ip, $email);
+     if($allowed == '-1000'){
+         echo "-1000";
+         return;
+     }
+    $model = new myORM();
+    
+    $check = $model->checkKey($uid, $key);
+    if($check == '-777'){
+        print ($check);
+        return;
+    }
+    
+    $userActs = $model->getUserActivities($email, $pass, $uid);
+    if($userActs != 0){
+        $acts = array();
+        while($row = mysql_fetch_array($userActs)){
+            $line = array();
+            $line['id'] = $row['id'];
+            $line['grade_id'] = $row['grade_id'];
+            $line['course_id'] = $row['course_id'];
+            $line['activity_name'] = $row['activity_name'];
+            $line['activity_type'] = $row['activity_type'];
+            $line['activity_url'] = $row['activity_url'];
+            $line['shelf_image'] = $row['shelf_image'];
+            $line['video_url'] = $row['video_url'];
+            $line['english_name'] = $row['english_name'];
+            $acts[] = $line;
+        }
+        $acts = utf8_converter($acts);
+        $acts = json_encode($acts);
+        print $cypt->encrypt($acts);
+    }else{
+        print $cypt->encrypt('0');
+    }
+});
+
+$app->get("/user/trace/:var",function($var) use ($app, $ip){
+    $cypt = new MCrypt();
+    $originalData = $cypt->decrypt($var);
+    
+    $dataArray = explode("#$#",$originalData);
+    $email = $dataArray[0];
+    $pass = $dataArray[1];
+    $uid = $dataArray[2];
+    $resName = $dataArray[3];
+    $resType = $dataArray[4];
+    $startDate = $dataArray[5];
+    //Check ISP and User
+     $allowed = checkISP($ip, $email);
+     if($allowed == '-1000'){
+         echo "-1000";
+         return;
+     }
+    $model = new myORM();
+    $insertTrace = $model->insertTrace($email, $pass, $uid, $resName, $resType, $startDate);
+    
+    print $cypt->encrypt($insertTrace);
+});
+
+$app->get("/user/trace/end/:var",function($var) use ($app){
+    $cypt = new MCrypt();
+    $originalData = $cypt->decrypt($var);
+    
+    $dataArray = explode("#$#", $originalData);
+    $email = $dataArray[0];
+    $pass = $dataArray[1];
+    $uid = $dataArray[2];
+    $tid = $dataArray[3];
+    $endDate = $dataArray[4];
+    
+    $model = new myORM();
+    $updateTrace = $model->updateUserTrace($email, $pass, $tid, $endDate);
+    
+    print $cypt->encrypt($updateTrace);
+});
+
+$app->get("/grades/:var", function($var) use ($app, $ip){
+    $cypt = new MCrypt();
+    $orginalData = $cypt->decrypt($var);
+    
+    $dataArray = explode('#$#', $orginalData);
+    $email = $dataArray[0];
+    $pass = $dataArray[1];
+    $uid = $dataArray[2];
+    $key = $dataArray[3];
+    //Check ISP and User
+     $allowed = checkISP($ip, $email);
+     if($allowed == '-1000'){
+         echo "-1000";
+         return;
+     }
+    $model = new myORM();
+    
+    $check = $model->checkKey($uid, $key);
+    if($check == '-777'){
+        print ($check);
+        return;
+    }
+    
+    $grades = $model->getGrades($email, $pass);
+    if($grades != 0){
+        $grds = array();
+        while($row = mysql_fetch_array($grades)){
+            $line = array();
+            $line['id'] = $row['id'];
+            $line['grade_name'] = $row['grade_name'];
+            $grds[] = $line;
+        }
+	$grds = utf8_converter($grds);
+	$grds = json_encode($grds);
+        print $cypt->encrypt($grds);
+    }else{
+        print $cypt->encrypt('0');
+    }
+});
+
+$app->get("/courses/:var", function($var) use ($app, $ip){
+    $cypt = new MCrypt();
+    $orginalData = $cypt->decrypt($var);
+    
+    $dataArray = explode('#$#', $orginalData);
+    $email = $dataArray[0];
+    $pass = $dataArray[1];
+    $gid = $dataArray[2];
+    $uid = $dataArray[3];
+    $key = $dataArray[4];
+    //Check ISP and User
+     $allowed = checkISP($ip, $email);
+     if($allowed == '-1000'){
+         echo "-1000";
+         return;
+     }
+    $model = new myORM();
+    
+    $check = $model->checkKey($uid, $key);
+    if($check == '-777'){
+        print ($check);
+        return;
+    }
+    
+    $courses = $model->getCoursesByGradeId($email, $pass, $gid);
+    if($courses != 0){
+        $crs = array();
+        while($row = mysql_fetch_array($courses)){
+            $line = array();
+            $line['id'] = $row['id'];
+            $line['course_name'] = $row['course_name'];
+            $line['course_code'] = $row['course_code'];
+            $crs[] = $line;
+        }
+        $crs = utf8_converter($crs);
+        $crs = json_encode($crs);
+        print $cypt->encrypt($crs);
+    }else{
+        print $cypt->encrypt('0');
+    }
+});
+
+$app->run();
+
+function utf8_converter($array)
+{
+    array_walk_recursive($array, function(&$item, $key){
+        if(!mb_detect_encoding($item, 'utf-8', true)){
+                $item = utf8_encode($item);
+        }
+    });
+ 
+    return $array;
+}
+
+function checkISP($ip,$email){
+       
+    /*******************************
+     * Now Define orange IPs ranges
+     ******************************/
+    //Range 1
+    $ip_l_range1 = ip2long('37.202.64.0');
+    $ip_h_range1 = ip2long('37.202.127.255');
+    
+    //Range 2
+    $ip_l_range2 = ip2long('46.185.128.0');
+    $ip_h_range2 = ip2long('46.185.255.255');
+    
+    //Range 3
+    $ip_l_range3 = ip2long('86.108.0.0');
+    $ip_h_range3 = ip2long('86.108.127.255');
+    
+    //Range 4
+    $ip_l_range4 = ip2long('92.253.0.0');
+    $ip_h_range4 = ip2long('92.253.127.255');
+    
+    //Range 5
+    $ip_l_range5 = ip2long('149.200.128.0');
+    $ip_h_range5 = ip2long('149.200.255.255');
+    
+    //Range 6
+    $ip_l_range6 = ip2long('194.165.128.0');
+    $ip_h_range6 = ip2long('194.165.159.255');
+    
+    //Range 7
+    $ip_l_range7 = ip2long('213.186.160.0');
+    $ip_h_range7 = ip2long('213.186.191.255');
+    
+    //Range 8
+    $ip_l_range8 = ip2long('217.23.32.0');
+    $ip_h_range8 = ip2long('217.23.47.255');
+    
+    //Range 9
+    $ip_l_range9 = ip2long('212.34.0.0');
+    $ip_h_range9 = ip2long('212.34.31.255');
+    
+    //Range 10
+    $ip_l_range10 = ip2long('79.173.192.0');
+    $ip_h_range10 = ip2long('79.173.255.255');
+    
+    //Range 11
+    $ip_l_range11 = ip2long('94.249.0.0');
+    $ip_h_range11 = ip2long('94.249.127.255');
+    
+    //Range 12
+    $ip_l_range12 = ip2long('213.139.32.0');
+    $ip_h_range12 = ip2long('213.139.63.255');
+    /********************************
+     * End of IP Ranges 
+     ********************************/
+    
+    //Define Allowed users array
+    //Those users even they are not from Orange they can access the system tools
+    $allowedUsers = array(
+        'orange1@orange.com',
+        'orange2@orange.com',
+        'orange3@orange.com',
+        'orange4@orange.com',
+        'orange5@orange.com',
+        'orange6@orange.com',
+        'orange7@orange.com',
+        'orange8@orange.com',
+        'orange9@orange.com',
+        'demo1@elearment.com',
+        'demo2@elearment.com',
+        'demo3@elearment.com',
+        'demo4@elearment.com',
+        'demo5@elearment.com',
+        'demo6@elearment.com',
+        'demo7@elearment.com',
+        'demo8@elearment.com',
+        'demo9@elearment.com',
+        'demo10@elearment.com'
+    );
+    //Start the logik 
+    /*****
+     * Check If in Range
+    **********/
+    $flag = false;
+    if($ip <= $ip_h_range1 && $ip_l_range1 <= $ip) {
+       $flag = true;
+    }elseif ($ip <= $ip_h_range2 && $ip_l_range2 <= $ip) {
+       $flag = true;
+    }elseif ($ip <= $ip_h_range3 && $ip_l_range3 <= $ip) {
+       $flag = true;
+    }elseif ($ip <= $ip_h_range4 && $ip_l_range4 <= $ip) {
+       $flag = true;
+    }elseif ($ip <= $ip_h_range5 && $ip_l_range5 <= $ip) {
+       $flag = true;
+    }elseif ($ip <= $ip_h_range6 && $ip_l_range6 <= $ip) {
+       $flag = true;
+    }elseif ($ip <= $ip_h_range7 && $ip_l_range7 <= $ip) {
+       $flag = true;
+    }elseif ($ip <= $ip_h_range8 && $ip_l_range8 <= $ip) {
+      $flag = true;
+    }elseif ($ip <= $ip_h_range9 && $ip_l_range9 <= $ip) {
+       $flag = true;
+    }elseif ($ip <= $ip_h_range10 && $ip_l_range10 <= $ip) {
+      $flag = true;
+    }elseif ($ip <= $ip_h_range11 && $ip_l_range11 <= $ip) {
+       $flag = true;
+    }elseif ($ip <= $ip_h_range12 && $ip_l_range12 <= $ip) {
+       $flag = true;
+    }
+
+    if($flag == false && !in_array($email, $allowedUsers)){
+        //echo "-1000";
+        return "-1000";
+    }
+}
+
